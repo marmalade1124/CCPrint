@@ -27,10 +27,19 @@ export function useTelemetrySync() {
         const cleanJobFile = job.filename.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
         const cleanActiveFile = activeFile.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
 
+        // Check for direct match, substring containment, or keyword overlap of significant words (length > 4)
+        const getSignificantWords = (s: string) => 
+          s.split(/[^a-z0-9]/).filter(word => word.length > 4);
+        
+        const jobWords = getSignificantWords(cleanJobFile);
+        const activeWords = getSignificantWords(cleanActiveFile);
+        const hasKeywordOverlap = jobWords.some(word => activeWords.includes(word));
+
         const matches =
           cleanJobFile === cleanActiveFile ||
           cleanActiveFile.includes(cleanJobFile) ||
-          cleanJobFile.includes(cleanActiveFile);
+          cleanJobFile.includes(cleanActiveFile) ||
+          hasKeywordOverlap;
 
         if (matches) {
           if (gcodeState === 'RUNNING' && job.status !== 'Printing') {
