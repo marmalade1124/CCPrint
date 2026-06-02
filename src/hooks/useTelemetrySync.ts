@@ -24,10 +24,13 @@ export function useTelemetrySync() {
 
         if (!activeFile) continue;
 
+        const cleanJobFile = job.filename.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
+        const cleanActiveFile = activeFile.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
+
         const matches =
-          job.filename.toLowerCase() === activeFile.toLowerCase() ||
-          activeFile.toLowerCase().includes(job.filename.toLowerCase()) ||
-          job.filename.toLowerCase().includes(activeFile.toLowerCase());
+          cleanJobFile === cleanActiveFile ||
+          cleanActiveFile.includes(cleanJobFile) ||
+          cleanJobFile.includes(cleanActiveFile);
 
         if (matches) {
           if (gcodeState === 'RUNNING' && job.status !== 'Printing') {

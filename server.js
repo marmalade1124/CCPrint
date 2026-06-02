@@ -189,13 +189,14 @@ class PrinterConnection {
     this.mockIsPrinting = false;
   }
 
-  async printFile(filename) {
-    const filePath = path.join(uploadDir, filename);
+  async printFile(filename, plateIndex) {
+    const baseFilename = filename.replace(/\s*\(Plate\s+\d+\)\s*$/i, '');
+    const filePath = path.join(uploadDir, baseFilename);
     if (!fs.existsSync(filePath)) {
-      throw new Error(`File ${filename} not found in uploads.`);
+      throw new Error(`File ${baseFilename} not found in uploads.`);
     }
 
-    console.log(`[${this.config.name}] Starting FTPS upload of ${filename} to ftp://${this.config.ip}:990/ ...`);
+    console.log(`[${this.config.name}] Starting FTPS upload of ${baseFilename} to ftp://${this.config.ip}:990/ ...`);
     
     const ip = this.config.ip;
     const accessCode = this.config.accessCode;
@@ -209,7 +210,7 @@ class PrinterConnection {
         `bblp:${accessCode}`,
         '-T',
         filePath,
-        `ftps://${ip}:990/${encodeURIComponent(filename)}`
+        `ftps://${ip}:990/${encodeURIComponent(baseFilename)}`
       ];
       
       execFile('curl', args, (error, stdout, stderr) => {
@@ -220,21 +221,46 @@ class PrinterConnection {
         
         console.log(`[${this.config.name}] FTPS upload complete! Triggering print job via MQTT...`);
         
+        const isGcode = baseFilename.toLowerCase().endsWith('.gcode');
         const topic = `device/${this.config.serial}/request`;
-        const payload = {
-          print: {
-            sequence_id: Math.floor(Math.random() * 100000).toString(),
-            command: "project_file",
-            param: "Metadata/slice_info.json",
-            subtask_name: filename,
-            url: `file:///sdcard/${encodeURIComponent(filename)}`,
-            md5: "",
-            timelapse: false,
-            bed_leveling: true,
-            flow_cali: false,
-            vibration_cali: false
+        
+        let payload;
+        if (isGcode) {
+          payload = {
+            print: {
+              sequence_id: Math.floor(Math.random() * 100000).toString(),
+              command: "gcode_file",
+              param: `/${baseFilename}`,
+              subtask_name: baseFilename,
+            }
+          };
+        } else {
+          let resolvedPlateIndex = plateIndex;
+          if (resolvedPlateIndex === undefined || resolvedPlateIndex === null) {
+            const match = filename.match(/\(Plate\s+(\d+)\)/i);
+            if (match) {
+              resolvedPlateIndex = parseInt(match[1], 10) - 1;
+            }
           }
-        };
+          const plateNum = (resolvedPlateIndex !== undefined && resolvedPlateIndex !== null && !isNaN(Number(resolvedPlateIndex)))
+            ? (Number(resolvedPlateIndex) + 1)
+            : 1;
+
+          payload = {
+            print: {
+              sequence_id: Math.floor(Math.random() * 100000).toString(),
+              command: "project_file",
+              param: `Metadata/plate_${plateNum}.gcode`,
+              subtask_name: baseFilename,
+              url: `file:///sdcard/${encodeURIComponent(baseFilename)}`,
+              md5: "",
+              timelapse: false,
+              bed_leveling: true,
+              flow_cali: false,
+              vibration_cali: false
+            }
+          };
+        }
 
         if (this.mqttClient && this.connectionStatus === 'online') {
           this.mqttClient.publish(topic, JSON.stringify(payload), (err) => {
@@ -651,14 +677,14 @@ app.post('/api/printer/mock/stop', (req, res) => {
 });
 
 app.post('/api/printer/print', async (req, res) => {
-  const { serial, filename } = req.body;
+  const { serial, filename, plateIndex } = req.body;
   const printer = printers.get(serial);
   if (!printer) {
     return res.status(404).json({ error: 'Printer not found' });
   }
 
   try {
-    const result = await printer.printFile(filename);
+    const result = await printer.printFile(filename, plateIndex);
     res.json(result);
   } catch (err) {
     console.error('Failed to start real print:', err);

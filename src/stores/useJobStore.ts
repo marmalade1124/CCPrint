@@ -571,6 +571,9 @@ export const useJobStore = create<JobStore>((set, get) => ({
       return;
     }
 
+    const job = get().jobs.find((j) => j.id === jobId);
+    const plateIndex = job ? job.plateIndex : undefined;
+
     const printerName = printers.find((p) => p.serial === activePrinterSerial)?.name || activePrinterSerial;
     toast.addToast(`Sending "${filename}" to printer "${printerName}"...`, 'info');
     const apiBase = getApiBase();
@@ -579,7 +582,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
       const response = await fetch(`${apiBase}/api/printer/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serial: activePrinterSerial, filename }),
+        body: JSON.stringify({ serial: activePrinterSerial, filename, plateIndex }),
       });
 
       if (response.ok) {
