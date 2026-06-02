@@ -234,10 +234,12 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
       alert('Please enter a job title first.');
       return;
     }
+
+    const selectedClient = clientName || 'Walk-in Client';
     
     onAddJob({
       title: jobTitle,
-      client: clientName || 'Walk-in Client',
+      client: selectedClient,
       weight: weight,
       printTimeMinutes: totalMinutes,
       price: Math.round(total * 100) / 100,
@@ -245,6 +247,22 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
       status,
       spoolId: selectedSpoolId || undefined,
     });
+
+    // Auto-save new client name to Customer Directory if they don't exist
+    const clientExists = customers.some(c => c.name.toLowerCase() === selectedClient.toLowerCase());
+    if (!clientExists && selectedClient !== 'Walk-in Client') {
+      import('../stores/useCustomerStore').then(({ useCustomerStore }) => {
+        useCustomerStore.getState().addCustomer({
+          id: 'cust-' + Math.random().toString(36).substring(2, 9),
+          name: selectedClient,
+          email: '',
+          phone: '',
+          company: '',
+          notes: 'Auto-created from Pricing Engine quote compilation.',
+          dateAdded: new Date().toLocaleDateString(),
+        });
+      });
+    }
 
     // Reset inputs
     setClientName('');
