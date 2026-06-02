@@ -108,7 +108,8 @@ export async function initDb(): Promise<Database> {
       plate_name TEXT,
       completed_at TEXT,
       printer_serial TEXT,
-      printer_name TEXT
+      printer_name TEXT,
+      started_at TEXT
     );
   `);
 
@@ -147,6 +148,13 @@ export async function initDb(): Promise<Database> {
       action_payload TEXT
     );
   `);
+
+  // Database schema migration fallbacks
+  try {
+    await db.execute("ALTER TABLE jobs ADD COLUMN started_at TEXT");
+  } catch (e) {
+    // Ignore: column already exists
+  }
 
   return db;
 }
