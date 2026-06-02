@@ -187,6 +187,34 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
         pixelRatio: 2,
       });
 
+      // Try using modern File System Access API for "Save As..." prompt
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: `CCprint_Quote_${quoteId || 'Receipt'}.png`,
+            types: [{
+              description: 'PNG Image',
+              accept: { 'image/png': ['.png'] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          const response = await fetch(dataUrl);
+          const blob = await response.blob();
+          await writable.write(blob);
+          await writable.close();
+          setDownloadStatus('success');
+          setTimeout(() => setDownloadStatus('idle'), 2000);
+          return;
+        } catch (pickerErr: any) {
+          if (pickerErr.name === 'AbortError') {
+            setDownloadStatus('idle');
+            return;
+          }
+          console.warn('showSaveFilePicker failed or cancelled, falling back to standard download:', pickerErr);
+        }
+      }
+
+      // Standard fallback (silent download to system Downloads folder)
       const link = document.createElement('a');
       link.download = `CCprint_Quote_${quoteId || 'Receipt'}.png`;
       link.href = dataUrl;
