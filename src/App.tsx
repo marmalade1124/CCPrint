@@ -58,17 +58,28 @@ export default function App() {
         console.error("Error setting up SQLite database and migrations:", e);
       }
 
+      // Initialize stores in isolation (so one failure doesn't block the rest)
+      const storeInits = [
+        { name: 'SettingsStore', action: () => useSettingsStore.getState().init() },
+        { name: 'PrinterStore', action: () => usePrinterStore.getState().init() },
+        { name: 'FilamentStore', action: () => useFilamentStore.getState().init() },
+        { name: 'CustomerStore', action: () => useCustomerStore.getState().init() },
+        { name: 'JobStore', action: () => useJobStore.getState().init() },
+      ];
+
+      for (const item of storeInits) {
+        try {
+          await item.action();
+        } catch (e) {
+          console.error(`Error initializing ${item.name}:`, e);
+        }
+      }
+
       try {
-        // Initialize stores (regardless of SQLite/migration success to allow local fallback)
-        await useSettingsStore.getState().init();
-        await usePrinterStore.getState().init();
-        await useFilamentStore.getState().init();
-        await useCustomerStore.getState().init();
-        await useJobStore.getState().init();
         const { useNotificationStore } = await import('./stores/useNotificationStore');
         await useNotificationStore.getState().init();
       } catch (e) {
-        console.error("Error initializing stores:", e);
+        console.error("Error initializing NotificationStore:", e);
       }
     }
     setupDb();

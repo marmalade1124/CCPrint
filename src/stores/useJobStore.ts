@@ -316,6 +316,67 @@ export const useJobStore = create<JobStore>((set, get) => ({
       }
     }
 
+    // Ensure active Dispenser Stand print job is restored/injected if missing
+    const hasDispenserJob = jobs.some(
+      j => j.title.toLowerCase().includes('dispenser') || 
+           (j.filename && j.filename.toLowerCase().includes('dispenser'))
+    );
+
+    if (!hasDispenserJob) {
+      const spools = useFilamentStore.getState().spools;
+      const matchingSpool = spools.find(s => s.material === 'PLA') || spools[0];
+      
+      const recoveredDispenserJob: Job = {
+        id: 'job-dispenser-stand-recovery',
+        title: 'Dispenser Stand (Plate 1)',
+        client: 'Coinnect',
+        weight: 100.6,
+        printTimeMinutes: 197,
+        price: 489.26,
+        filename: 'Stun_Dispenser_F v6.stl_2 + Stun_Dispenser_F v6.stl_3.gcode.3mf',
+        status: 'Printing',
+        dateCreated: new Date().toLocaleDateString(),
+        spoolId: matchingSpool ? matchingSpool.id : undefined,
+        filamentDeducted: false,
+        progress: 3,
+        startedAt: new Date().toISOString(),
+      };
+      
+      jobs.push(recoveredDispenserJob);
+      saveJobsToLocal(jobs);
+      
+      if (isTauri()) {
+        try {
+          const db = await getDb();
+          await db.execute(
+            `INSERT OR REPLACE INTO jobs (
+              id, title, client, weight, print_time_minutes, price, filename, status, 
+              progress, remaining_time_minutes, date_created, spool_id, filament_deducted,
+              started_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            [
+              recoveredDispenserJob.id,
+              recoveredDispenserJob.title,
+              recoveredDispenserJob.client,
+              recoveredDispenserJob.weight,
+              recoveredDispenserJob.printTimeMinutes,
+              recoveredDispenserJob.price,
+              recoveredDispenserJob.filename,
+              recoveredDispenserJob.status,
+              recoveredDispenserJob.progress,
+              190,
+              recoveredDispenserJob.dateCreated,
+              recoveredDispenserJob.spoolId || null,
+              0,
+              recoveredDispenserJob.startedAt
+            ]
+          );
+        } catch (dbErr) {
+          console.error("Failed to insert recovered dispenser job into SQLite:", dbErr);
+        }
+      }
+    }
+
     set({ jobs, failuresLog, historyLog });
   },
 
