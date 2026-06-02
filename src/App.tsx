@@ -5,6 +5,7 @@ import { useSettingsStore } from './stores/useSettingsStore';
 import { usePrinterStore } from './stores/usePrinterStore';
 import { useJobStore } from './stores/useJobStore';
 import { useFilamentStore } from './stores/useFilamentStore';
+import { useCustomerStore } from './stores/useCustomerStore';
 import { getApiBase } from './utils/api';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useTelemetrySync } from './hooks/useTelemetrySync';
