@@ -141,6 +141,99 @@ export const useJobStore = create<JobStore>((set, get) => ({
           plateIndex: r.plate_index !== null ? r.plate_index : undefined,
           plateName: r.plate_name || undefined,
         }));
+
+        // Self-healing recovery: recover jobs and history from filament logs if they are missing
+        try {
+          const logRows = await db.select<any[]>("SELECT * FROM filament_logs WHERE type = 'deduction'");
+          let recoveredAny = false;
+          const cleanF = (f: string) => f.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
+          
+          for (const log of logRows) {
+            const logJobTitle = log.job_title || '';
+            if (!logJobTitle) continue;
+            
+            const hasHistory = historyLog.some(h => cleanF(h.filename || '') === cleanF(logJobTitle) || cleanF(h.jobTitle || '') === cleanF(logJobTitle));
+            const hasJob = jobs.some(j => cleanF(j.filename || '') === cleanF(logJobTitle) || cleanF(j.title || '') === cleanF(logJobTitle));
+            
+            if (!hasHistory && !hasJob) {
+              recoveredAny = true;
+              
+              const cleanTitle = logJobTitle.replace(/\.gcode(\.3mf)?$/i, '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+              const weight = log.grams || 0;
+              const printTime = 60; // Default estimate
+              const price = Math.round((weight * 3.0 + 50.0) * 1.05 * 100) / 100;
+              const recoveredJobId = 'job-rec-' + Math.random().toString(36).substring(2, 9);
+              const dateStr = log.date ? log.date.split(' ')[0] : new Date().toLocaleDateString();
+              const datetimeStr = log.date || new Date().toISOString();
+              
+              const newJob: Job = {
+                id: recoveredJobId,
+                title: cleanTitle,
+                client: 'Walk-in Client',
+                weight,
+                printTimeMinutes: printTime,
+                price,
+                filename: logJobTitle,
+                status: 'Completed',
+                dateCreated: dateStr,
+                spoolId: log.spool_id || undefined,
+                filamentDeducted: true,
+                completedAt: datetimeStr,
+                startedAt: datetimeStr,
+              };
+              
+              const newHistory: PrintHistoryRecord = {
+                id: 'hist-rec-' + Math.random().toString(36).substring(2, 9),
+                jobId: recoveredJobId,
+                jobTitle: cleanTitle,
+                client: 'Walk-in Client',
+                filename: logJobTitle,
+                weightGrams: weight,
+                printTimeMinutes: printTime,
+                price,
+                spoolId: log.spool_id || undefined,
+                spoolName: log.spool_name || undefined,
+                status: 'Completed',
+                startedAt: datetimeStr,
+                completedAt: datetimeStr,
+              };
+              
+              jobs.push(newJob);
+              historyLog.unshift(newHistory);
+              
+              await db.execute(
+                `INSERT OR REPLACE INTO jobs (
+                  id, title, client, weight, print_time_minutes, price, filename, status, 
+                  progress, remaining_time_minutes, date_created, spool_id, filament_deducted,
+                  plate_index, plate_name, completed_at, printer_serial, printer_name, started_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+                [
+                  newJob.id, newJob.title, newJob.client, newJob.weight, newJob.printTimeMinutes, newJob.price, newJob.filename, newJob.status,
+                  null, null, newJob.dateCreated, newJob.spoolId || null, 1,
+                  null, null, newJob.completedAt, null, null, newJob.startedAt
+                ]
+              );
+              
+              await db.execute(
+                `INSERT INTO print_history (
+                  id, job_id, job_title, client, filename, weight_grams, print_time_minutes, 
+                  price, spool_id, spool_name, status, started_at, completed_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                [
+                  newHistory.id, newHistory.jobId, newHistory.jobTitle, newHistory.client, newHistory.filename, newHistory.weightGrams, newHistory.printTimeMinutes,
+                  newHistory.price, newHistory.spoolId || null, newHistory.spoolName || null, 'Completed', newHistory.startedAt || null, newHistory.completedAt || null
+                ]
+              );
+            }
+          }
+          if (recoveredAny) {
+            saveJobsToLocal(jobs);
+            saveHistoryToLocal(historyLog);
+          }
+        } catch (recoverErr) {
+          console.error("Self-healing job/history recovery from filament logs failed:", recoverErr);
+        }
+
         if (jobs.length > 0) {
           loaded = true;
         }

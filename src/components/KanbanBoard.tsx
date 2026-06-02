@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Check, Trash2, Clock, Scale, User, FileText, Calculator, ShieldAlert } from 'lucide-react';
+import ReceiptModal from './ReceiptModal';
 
 export interface Job {
   id: string;
@@ -62,6 +63,7 @@ export default function KanbanBoard({
   const [isDraggingOverCol, setIsDraggingOverCol] = useState<string | null>(null);
   const [failModalJob, setFailModalJob] = useState<Job | null>(null);
   const [failPercent, setFailPercent] = useState<number>(50);
+  const [selectedReceiptJob, setSelectedReceiptJob] = useState<Job | null>(null);
 
   // Filter jobs based on search query
   const filteredJobs = jobs.filter(
@@ -223,13 +225,22 @@ export default function KanbanBoard({
                           <h5 className="font-bold text-sm text-slate-800 line-clamp-2 leading-tight pr-1">
                             {job.title}
                           </h5>
-                          <button
-                            onClick={() => onDeleteJob(job.id)}
-                            className="text-slate-350 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
-                            title="Delete Job"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button
+                              onClick={() => setSelectedReceiptJob(job)}
+                              className="text-slate-350 hover:text-brand-orange p-0.5 rounded transition-colors"
+                              title="View Quote Receipt"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onDeleteJob(job.id)}
+                              className="text-slate-350 hover:text-red-500 p-0.5 rounded transition-colors"
+                              title="Delete Job"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Client details */}
@@ -425,6 +436,13 @@ export default function KanbanBoard({
           </div>
         </div>
       )}
+
+      {/* Receipt Modal Recovery */}
+      <ReceiptModal 
+        isOpen={!!selectedReceiptJob} 
+        onClose={() => setSelectedReceiptJob(null)} 
+        job={selectedReceiptJob} 
+      />
     </div>
   );
 }

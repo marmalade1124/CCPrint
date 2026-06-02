@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Clock, CheckCircle, XCircle, Search, Printer, Download } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Search, Printer, Download, FileText } from 'lucide-react';
 import { FailureRecord } from './AnalyticsDashboard';
 import { FilamentSpool } from './FilamentInventory';
 import { PrintHistoryRecord } from '../types';
+import ReceiptModal from './ReceiptModal';
 
 interface PrintHistoryProps {
   historyLog: PrintHistoryRecord[];
@@ -13,6 +14,7 @@ interface PrintHistoryProps {
 export default function PrintHistory({ historyLog, failures, spools }: PrintHistoryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'failed'>('all');
+  const [selectedReceiptJob, setSelectedReceiptJob] = useState<any>(null);
 
   const handleExportCSV = () => {
     const headers = ['Status', 'Job Title', 'Client', 'Filename', 'Weight (g)', 'Duration (mins)', 'Price (PHP)', 'Spool', 'Date Completed'];
@@ -270,12 +272,13 @@ export default function PrintHistory({ historyLog, failures, spools }: PrintHist
                 <th className="py-4 px-6 text-right">Weight</th>
                 <th className="py-4 px-6 text-right">Time</th>
                 <th className="py-4 px-6 text-right">Revenue/Loss</th>
+                <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 italic">
+                  <td colSpan={8} className="py-12 text-center text-slate-400 italic">
                     No print history matches selected filters.
                   </td>
                 </tr>
@@ -315,6 +318,25 @@ export default function PrintHistory({ historyLog, failures, spools }: PrintHist
                           {item.status === 'success' ? '₱' : '-₱'}{item.cost.toLocaleString()}
                         </span>
                       </td>
+                      <td className="py-4 px-6 text-center">
+                        <button
+                          onClick={() => setSelectedReceiptJob({
+                            id: item.id,
+                            title: item.title,
+                            client: item.client,
+                            weight: item.weight,
+                            printTimeMinutes: item.durationMinutes,
+                            price: item.cost,
+                            filename: item.filename,
+                            dateCreated: item.date,
+                            spoolId: item.spoolId,
+                          })}
+                          className="p-1 text-slate-450 hover:text-brand-orange rounded transition-colors"
+                          title="View Quote Receipt"
+                        >
+                          <FileText className="w-4 h-4 mx-auto" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -323,6 +345,13 @@ export default function PrintHistory({ historyLog, failures, spools }: PrintHist
           </table>
         </div>
       </div>
+
+      {/* Receipt Modal Recovery */}
+      <ReceiptModal
+        isOpen={!!selectedReceiptJob}
+        onClose={() => setSelectedReceiptJob(null)}
+        job={selectedReceiptJob}
+      />
     </div>
   );
 }
