@@ -11,6 +11,8 @@ interface SettingsStore {
   updateShopName: (name: string) => Promise<void>;
 }
 
+let initPromise: Promise<void> | null = null;
+
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   pricingVars: {
     pricePerGram: 3.0,
@@ -21,8 +23,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   shopName: 'CCprint Shop',
 
-  init: async () => {
-    let pricingVars: QuotingVariables = {
+  init: () => {
+    if (!initPromise) {
+      initPromise = (async () => {
+        let pricingVars: QuotingVariables = {
       pricePerGram: 3.0,
       pricePerHour: 50.0,
       serviceFeePercent: 5.0,
@@ -88,7 +92,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       }
     }
 
-    set({ pricingVars, shopName });
+        set({ pricingVars, shopName });
+      })();
+    }
+    return initPromise;
   },
 
   updatePricingVars: async (vars) => {

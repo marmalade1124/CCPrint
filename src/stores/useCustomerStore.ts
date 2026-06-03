@@ -19,68 +19,75 @@ interface CustomerStore {
   deleteCustomer: (id: string) => Promise<void>;
 }
 
+let initPromise: Promise<void> | null = null;
+
 export const useCustomerStore = create<CustomerStore>((set, get) => ({
   customers: [],
 
-  init: async () => {
-    let customers: Customer[] = [];
-    let loaded = false;
+  init: () => {
+    if (!initPromise) {
+      initPromise = (async () => {
+        let customers: Customer[] = [];
+        let loaded = false;
 
-    if (isTauri()) {
-      try {
-        const db = await getDb();
-        const rows = await db.select<any[]>("SELECT * FROM customers ORDER BY name ASC");
-        customers = rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          email: r.email,
-          phone: r.phone,
-          company: r.company,
-          notes: r.notes,
-          dateAdded: r.date_added,
-        }));
-        if (customers.length > 0) {
-          loaded = true;
-        }
-      } catch (e) {
-        console.error("Failed to initialize CustomerStore from SQLite, falling back to localStorage:", e);
-      }
-    }
-
-    if (!loaded) {
-      try {
-        const stored = localStorage.getItem('printflow_customers_store');
-        if (stored) {
-          customers = JSON.parse(stored);
-
-          if (isTauri() && customers.length > 0) {
-            try {
-              const db = await getDb();
-              for (const c of customers) {
-                await db.execute(
-                  "INSERT OR REPLACE INTO customers (id, name, email, phone, company, notes, date_added) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                  [
-                    c.id,
-                    c.name,
-                    c.email || '',
-                    c.phone || '',
-                    c.company || '',
-                    c.notes || '',
-                    c.dateAdded,
-                  ]
-                );
-              }
-            } catch (sqle) {
-              console.error("Failed to sync loaded localStorage customers to SQLite:", sqle);
+        if (isTauri()) {
+          try {
+            const db = await getDb();
+            const rows = await db.select<any[]>("SELECT * FROM customers ORDER BY name ASC");
+            customers = rows.map((r) => ({
+              id: r.id,
+              name: r.name,
+              email: r.email,
+              phone: r.phone,
+              company: r.company,
+              notes: r.notes,
+              dateAdded: r.date_added,
+            }));
+            if (customers.length > 0) {
+              loaded = true;
             }
+          } catch (e) {
+            console.error("Failed to initialize CustomerStore from SQLite, falling back to localStorage:", e);
           }
         }
-      } catch (e) {
-        console.error("Failed to load customers from localStorage:", e);
-      }
-    }
 
-    set({ customers });
+        if (!loaded) {
+          try {
+            const stored = localStorage.getItem('printflow_customers_store');
+            if (stored) {
+              customers = JSON.parse(stored);
+
+              if (isTauri() && customers.length > 0) {
+                try {
+                  const db = await getDb();
+                  for (const c of customers) {
+                    await db.execute(
+                      "INSERT OR REPLACE INTO customers (id, name, email, phone, company, notes, date_added) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                      [
+                        c.id,
+                        c.name,
+                        c.email || '',
+                        c.phone || '',
+                        c.company || '',
+                        c.notes || '',
+                        c.dateAdded,
+                      ]
+                    );
+                  }
+                } catch (sqle) {
+                  console.error("Failed to sync loaded localStorage customers to SQLite:", sqle);
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Failed to load customers from localStorage:", e);
+          }
+        }
+
+        set({ customers });
+      })();
+    }
+    return initPromise;
   },
 
   addCustomer: async (customer) => {

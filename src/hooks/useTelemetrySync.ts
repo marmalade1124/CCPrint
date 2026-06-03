@@ -1,12 +1,31 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useJobStore } from '../stores/useJobStore';
 import { usePrinterStore } from '../stores/usePrinterStore';
 import { useFilamentStore } from '../stores/useFilamentStore';
 
+function normalizeFilename(filename: string): string {
+  if (!filename) return '';
+  return filename
+    // Remove plate designations like (Plate 1), _plate_1, plate1, etc.
+    .replace(/\s*\(Plate\s+\d+\)\s*$/i, '')
+    .replace(/[-_]plate[-_]?\d+/i, '')
+    .replace(/\bplate\s*\d+\b/i, '')
+    // Remove standard extensions
+    .replace(/\.gcode(\.3mf)?$/i, '')
+    .replace(/\.3mf$/i, '')
+    .replace(/\.gcode$/i, '')
+    .replace(/\.stl$/i, '')
+    // Replace non-alphanumeric characters with spaces
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 export function useTelemetrySync() {
   const telemetryMap = usePrinterStore((s) => s.telemetryMap);
   const jobs = useJobStore((s) => s.jobs);
-  const prevJobsRef = useRef(jobs);
 
   useEffect(() => {
     const currentJobs = useJobStore.getState().jobs;
@@ -29,13 +48,10 @@ export function useTelemetrySync() {
 
         if (!activeFile) continue;
 
-        const cleanJobFile = job.filename.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
-        const cleanActiveFile = activeFile.replace(/\s*\(Plate\s+\d+\)\s*$/i, '').toLowerCase();
+        const cleanJobFile = normalizeFilename(job.filename);
+        const cleanActiveFile = normalizeFilename(activeFile);
 
-        const matches =
-          cleanJobFile === cleanActiveFile ||
-          cleanActiveFile.includes(cleanJobFile) ||
-          cleanJobFile.includes(cleanActiveFile);
+        const matches = cleanJobFile !== '' && cleanActiveFile !== '' && cleanJobFile === cleanActiveFile;
 
         if (matches) {
           if (gcodeState === 'RUNNING' && job.status !== 'Printing') {
@@ -59,8 +75,17 @@ export function useTelemetrySync() {
               });
             }
 
-            if (job.spoolId && !job.filamentDeducted) {
-              useFilamentStore.getState().deductFilament(job.spoolId, job.weight, job.title, 'deduction');
+            let finalSpoolId = job.spoolId;
+            if (!finalSpoolId) {
+              const spools = useFilamentStore.getState().spools;
+              const matchingSpool = spools.find(s => s.material === 'PLA') || spools[0];
+              if (matchingSpool) {
+                finalSpoolId = matchingSpool.id;
+              }
+            }
+
+            if (finalSpoolId && !job.filamentDeducted) {
+              useFilamentStore.getState().deductFilament(finalSpoolId, job.weight, job.title, 'deduction');
             }
 
             return {
@@ -69,6 +94,7 @@ export function useTelemetrySync() {
               progress: 100,
               remainingTimeMinutes: 0,
               filamentDeducted: true,
+              spoolId: finalSpoolId,
             };
           }
         }

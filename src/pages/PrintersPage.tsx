@@ -7,7 +7,7 @@ import { getApiBase } from '../utils/api';
 export default function PrintersPage() {
   const {
     printers, activePrinterSerial, telemetryMap, connectionStatusMap,
-    setActivePrinter, addPrinter, updatePrinter, deletePrinter, setPrinters,
+    setActivePrinter, addPrinter, updatePrinter, deletePrinter,
     setConnectionStatus, clearPrinterTelemetry,
   } = usePrinterStore();
   const { addToast } = useToastStore();

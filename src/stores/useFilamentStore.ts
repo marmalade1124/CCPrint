@@ -35,14 +35,18 @@ interface FilamentStore {
   ) => Promise<void>;
 }
 
+let initPromise: Promise<void> | null = null;
+
 export const useFilamentStore = create<FilamentStore>((set, get) => ({
   spools: [],
   logs: [],
 
-  init: async () => {
-    let spools: FilamentSpool[] = [];
-    let logs: FilamentLog[] = [];
-    let loaded = false;
+  init: () => {
+    if (!initPromise) {
+      initPromise = (async () => {
+        let spools: FilamentSpool[] = [];
+        let logs: FilamentLog[] = [];
+        let loaded = false;
 
     if (isTauri()) {
       try {
@@ -124,7 +128,10 @@ export const useFilamentStore = create<FilamentStore>((set, get) => ({
       }
     }
 
-    set({ spools, logs });
+        set({ spools, logs });
+      })();
+    }
+    return initPromise;
   },
 
   addSpool: async (spool) => {

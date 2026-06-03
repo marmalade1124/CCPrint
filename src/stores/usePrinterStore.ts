@@ -32,16 +32,20 @@ interface PrinterStore {
   resetAllConnections: () => void;
 }
 
+let initPromise: Promise<void> | null = null;
+
 export const usePrinterStore = create<PrinterStore>((set, get) => ({
   printers: [],
   activePrinterSerial: null,
   telemetryMap: {},
   connectionStatusMap: {},
 
-  init: async () => {
-    let printers: PrinterProfile[] = [];
-    let activePrinterSerial: string | null = null;
-    let loaded = false;
+  init: () => {
+    if (!initPromise) {
+      initPromise = (async () => {
+        let printers: PrinterProfile[] = [];
+        let activePrinterSerial: string | null = null;
+        let loaded = false;
 
     if (isTauri()) {
       try {
@@ -102,7 +106,10 @@ export const usePrinterStore = create<PrinterStore>((set, get) => ({
       }
     }
 
-    set({ printers, activePrinterSerial });
+        set({ printers, activePrinterSerial });
+      })();
+    }
+    return initPromise;
   },
 
   addPrinter: async (printer) => {

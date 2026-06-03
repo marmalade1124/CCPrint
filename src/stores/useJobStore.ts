@@ -64,6 +64,7 @@ interface JobStore {
   // Batch update for telemetry sync (updates database and state)
   batchUpdateJobs: (updater: (jobs: Job[]) => Job[]) => Promise<void>;
 }
+let initPromise: Promise<void> | null = null;
 
 export const useJobStore = create<JobStore>((set, get) => ({
   jobs: [],
@@ -74,8 +75,10 @@ export const useJobStore = create<JobStore>((set, get) => ({
   isParsing: false,
   dragActive: false,
 
-  init: async () => {
-    let jobs: Job[] = [];
+  init: () => {
+    if (!initPromise) {
+      initPromise = (async () => {
+        let jobs: Job[] = [];
     let failuresLog: FailureRecord[] = [];
     let historyLog: PrintHistoryRecord[] = [];
     let loaded = false;
@@ -317,12 +320,14 @@ export const useJobStore = create<JobStore>((set, get) => ({
     }
 
     // Ensure active Dispenser Stand print job is restored/injected if missing
-    const hasDispenserJob = jobs.some(
-      j => j.title.toLowerCase().includes('dispenser') || 
-           (j.filename && j.filename.toLowerCase().includes('dispenser'))
-    );
+    const dispenserRecoveryDone = localStorage.getItem('dispenser_recovery_done') === 'true';
+    if (!dispenserRecoveryDone) {
+      const hasDispenserJob = jobs.some(
+        j => j.title.toLowerCase().includes('dispenser') || 
+             (j.filename && j.filename.toLowerCase().includes('dispenser'))
+      );
 
-    if (!hasDispenserJob) {
+      if (!hasDispenserJob) {
       const spools = useFilamentStore.getState().spools;
       const matchingSpool = spools.find(s => s.material === 'PLA') || spools[0];
       
@@ -376,6 +381,8 @@ export const useJobStore = create<JobStore>((set, get) => ({
         }
       }
     }
+    localStorage.setItem('dispenser_recovery_done', 'true');
+  }
 
     // Retroactive fix: if a job is marked as 'Printing' but exists in print history as 'Completed', restore it
     let fixedAny = false;
@@ -400,6 +407,9 @@ export const useJobStore = create<JobStore>((set, get) => ({
     }
 
     set({ jobs, failuresLog, historyLog });
+      })();
+    }
+    return initPromise;
   },
 
   addJob: async (newJob) => {
@@ -496,9 +506,17 @@ export const useJobStore = create<JobStore>((set, get) => ({
       }
     }
 
+    let finalSpoolId = job.spoolId;
     if ((newStatus === 'Ready for Pickup' || newStatus === 'Completed') && !isDeducted) {
-      if (job.spoolId) {
-        await useFilamentStore.getState().deductFilament(job.spoolId, job.weight, job.title, 'deduction');
+      if (!finalSpoolId) {
+        const spools = useFilamentStore.getState().spools;
+        const matchingSpool = spools.find(s => s.material === 'PLA') || spools[0];
+        if (matchingSpool) {
+          finalSpoolId = matchingSpool.id;
+        }
+      }
+      if (finalSpoolId) {
+        await useFilamentStore.getState().deductFilament(finalSpoolId, job.weight, job.title, 'deduction');
         isDeducted = true;
       }
     }
@@ -507,7 +525,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
     if (newStatus === 'Completed' && job.status !== 'Completed') {
       completedAt = new Date().toISOString();
       const historyId = 'hist-' + Math.random().toString(36).substring(2, 9);
-      const spool = useFilamentStore.getState().spools.find(s => s.id === job.spoolId);
+      const spool = useFilamentStore.getState().spools.find(s => s.id === finalSpoolId);
       const spoolName = spool ? spool.name : '';
 
       const newRecord: PrintHistoryRecord = {
@@ -519,7 +537,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
         weightGrams: job.weight,
         printTimeMinutes: job.printTimeMinutes,
         price: job.price,
-        spoolId: job.spoolId || undefined,
+        spoolId: finalSpoolId || undefined,
         spoolName: spoolName || undefined,
         printerSerial: printerSerial || undefined,
         printerName: printerName || undefined,
@@ -554,7 +572,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
               job.weight,
               job.printTimeMinutes,
               job.price,
-              job.spoolId || null,
+              finalSpoolId || null,
               spoolName || null,
               printerSerial || null,
               printerName || null,
@@ -579,6 +597,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
         const updates: Partial<Job> = {
           status: newStatus,
           filamentDeducted: isDeducted,
+          spoolId: finalSpoolId,
           startedAt,
           completedAt,
           printerSerial,
@@ -604,8 +623,9 @@ export const useJobStore = create<JobStore>((set, get) => ({
         await db.execute(
           `UPDATE jobs SET 
             status = $1, filament_deducted = $2, progress = $3, remaining_time_minutes = $4, 
-            started_at = $5, completed_at = $6, printer_serial = $7, printer_name = $8 
-          WHERE id = $9`,
+            started_at = $5, completed_at = $6, printer_serial = $7, printer_name = $8,
+            spool_id = $9
+          WHERE id = $10`,
           [
             newStatus,
             isDeducted ? 1 : 0,
@@ -615,6 +635,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
             completedAt || null,
             printerSerial || null,
             printerName || null,
+            finalSpoolId || null,
             id,
           ]
         );
@@ -656,12 +677,19 @@ export const useJobStore = create<JobStore>((set, get) => ({
 
     const wastedGrams = Math.round(job.weight * (failurePercent / 100) * 10) / 10;
     const filamentStore = useFilamentStore.getState();
-    const spool = filamentStore.spools.find((s) => s.id === job.spoolId);
+    let finalSpoolId = job.spoolId;
+    if (!finalSpoolId) {
+      const matchingSpool = filamentStore.spools.find((s) => s.material === 'PLA') || filamentStore.spools[0];
+      if (matchingSpool) {
+        finalSpoolId = matchingSpool.id;
+      }
+    }
+    const spool = filamentStore.spools.find((s) => s.id === finalSpoolId);
     const spoolName = spool ? spool.name : 'Default Spool';
     const wastedCost = spool ? Math.round(wastedGrams * (spool.cost / spool.initialWeight) * 100) / 100 : 0;
 
-    if (job.spoolId) {
-      await filamentStore.deductFilament(job.spoolId, wastedGrams, job.title, 'waste');
+    if (finalSpoolId) {
+      await filamentStore.deductFilament(finalSpoolId, wastedGrams, job.title, 'waste');
     }
 
     const wastedTimeMinutes = Math.round(job.printTimeMinutes * (failurePercent / 100));
@@ -669,7 +697,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
       id: 'fail-' + Math.random().toString(36).substring(2, 9),
       jobTitle: job.title,
       client: job.client,
-      spoolId: job.spoolId,
+      spoolId: finalSpoolId,
       spoolName,
       wastedGrams,
       wastedCost,
@@ -686,6 +714,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
           progress: undefined,
           remainingTimeMinutes: undefined,
           filamentDeducted: false,
+          spoolId: finalSpoolId,
         };
       }
       return j;
@@ -723,8 +752,8 @@ export const useJobStore = create<JobStore>((set, get) => ({
           ]
         );
         await db.execute(
-          "UPDATE jobs SET status = 'Pending Quote', progress = NULL, remaining_time_minutes = NULL, filament_deducted = 0 WHERE id = $1",
-          [jobId]
+          "UPDATE jobs SET status = 'Pending Quote', progress = NULL, remaining_time_minutes = NULL, filament_deducted = 0, spool_id = $1 WHERE id = $2",
+          [finalSpoolId || null, jobId]
         );
       } catch (e) {
         console.error("Failed to log failure in SQLite:", e);

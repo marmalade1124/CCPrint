@@ -7,7 +7,7 @@ import { useCustomerStore } from '../stores/useCustomerStore';
 
 export default function QuotesPage() {
   const { parsedFile, addJob } = useJobStore();
-  const { pricingVars, setPricingVars } = useSettingsStore();
+  const { pricingVars, updatePricingVars } = useSettingsStore();
   const { spools } = useFilamentStore();
   const { customers } = useCustomerStore();
 
@@ -18,7 +18,7 @@ export default function QuotesPage() {
       customers={customers}
       onAddJob={addJob}
       savedVariables={pricingVars}
-      onSaveVariables={setPricingVars}
+      onSaveVariables={updatePricingVars}
     />
   );
 }

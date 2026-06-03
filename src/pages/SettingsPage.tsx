@@ -10,8 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 export default function SettingsPage() {
   const { pricingVars, shopName, updatePricingVars, updateShopName } = useSettingsStore();
   const { jobs, failuresLog, setJobs } = useJobStore();
-  const { spools, setSpools } = useFilamentStore();
-  const { setPrinters, setActivePrinter, resetAllConnections } = usePrinterStore();
+  const { setActivePrinter, resetAllConnections } = usePrinterStore();
   const { addToast } = useToastStore();
 
   const [confirmReset, setConfirmReset] = useState(false);
@@ -21,9 +20,8 @@ export default function SettingsPage() {
       const { resetDb } = await import('../lib/database');
       await resetDb();
       setJobs([]);
-      setSpools([]);
-      setPrinters([]);
-      await setActivePrinter(null);
+      useFilamentStore.setState({ spools: [], logs: [] });
+      usePrinterStore.setState({ printers: [], activePrinterSerial: null, telemetryMap: {}, connectionStatusMap: {} });
       useJobStore.setState({ failuresLog: [], historyLog: [] });
       resetAllConnections();
       addToast('Application database reset successfully.', 'success');

@@ -1,7 +1,11 @@
 import { getDb } from './database';
 
-export async function runMigration(): Promise<void> {
-  const db = await getDb();
+let migrationPromise: Promise<void> | null = null;
+
+export function runMigration(): Promise<void> {
+  if (!migrationPromise) {
+    migrationPromise = (async () => {
+      const db = await getDb();
 
   // Check if already migrated
   const migrationCheck = await db.select<{ value: string }[]>(
@@ -197,4 +201,7 @@ export async function runMigration(): Promise<void> {
   for (const key of keysToClear) {
     localStorage.removeItem(key);
   }
+    })();
+  }
+  return migrationPromise;
 }

@@ -1,16 +1,19 @@
 import Database from '@tauri-apps/plugin-sql';
 
-let dbInstance: Database | null = null;
+let dbPromise: Promise<Database> | null = null;
+let initPromise: Promise<Database> | null = null;
 
-export async function getDb(): Promise<Database> {
-  if (!dbInstance) {
-    dbInstance = await Database.load('sqlite:ccprint.db');
+export function getDb(): Promise<Database> {
+  if (!dbPromise) {
+    dbPromise = Database.load('sqlite:ccprint.db');
   }
-  return dbInstance;
+  return dbPromise;
 }
 
-export async function initDb(): Promise<Database> {
-  const db = await getDb();
+export function initDb(): Promise<Database> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const db = await getDb();
 
   // Create Settings table
   await db.execute(`
@@ -150,13 +153,16 @@ export async function initDb(): Promise<Database> {
   `);
 
   // Database schema migration fallbacks
-  try {
-    await db.execute("ALTER TABLE jobs ADD COLUMN started_at TEXT");
-  } catch (e) {
-    // Ignore: column already exists
-  }
+      try {
+        await db.execute("ALTER TABLE jobs ADD COLUMN started_at TEXT");
+      } catch (e) {
+        // Ignore: column already exists
+      }
 
-  return db;
+      return db;
+    })();
+  }
+  return initPromise;
 }
 
 export async function resetDb(): Promise<void> {

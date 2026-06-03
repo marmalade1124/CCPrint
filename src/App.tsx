@@ -89,7 +89,7 @@ export default function App() {
   // Stores
   const { toasts, removeToast } = useToastStore();
   const { shopName, pricingVars } = useSettingsStore();
-  const { printers, activePrinterSerial, telemetryMap, connectionStatusMap, setActivePrinter, addPrinter, updatePrinter, deletePrinter, setPrinters, setConnectionStatus, clearPrinterTelemetry } = usePrinterStore();
+  const { printers, activePrinterSerial, telemetryMap, connectionStatusMap, setActivePrinter, addPrinter, updatePrinter, deletePrinter, setConnectionStatus, clearPrinterTelemetry } = usePrinterStore();
   const { incomingSlicerJob, setIncomingSlicerJob, addJob, setParsedFile } = useJobStore();
   const { addToast } = useToastStore();
 
