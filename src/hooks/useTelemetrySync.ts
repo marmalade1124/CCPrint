@@ -2,26 +2,8 @@ import { useEffect } from 'react';
 import { useJobStore } from '../stores/useJobStore';
 import { usePrinterStore } from '../stores/usePrinterStore';
 import { useFilamentStore } from '../stores/useFilamentStore';
+import { normalizeFilename } from '../utils/api';
 
-function normalizeFilename(filename: string): string {
-  if (!filename) return '';
-  return filename
-    // Remove plate designations like (Plate 1), _plate_1, plate1, etc.
-    .replace(/\s*\(Plate\s+\d+\)\s*$/i, '')
-    .replace(/[-_]plate[-_]?\d+/i, '')
-    .replace(/\bplate\s*\d+\b/i, '')
-    // Remove standard extensions
-    .replace(/\.gcode(\.3mf)?$/i, '')
-    .replace(/\.3mf$/i, '')
-    .replace(/\.gcode$/i, '')
-    .replace(/\.stl$/i, '')
-    // Replace non-alphanumeric characters with spaces
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    // Normalize whitespace
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
 
 export function useTelemetrySync() {
   const telemetryMap = usePrinterStore((s) => s.telemetryMap);

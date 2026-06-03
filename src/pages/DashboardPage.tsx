@@ -8,6 +8,8 @@ import { useFilamentStore } from '../stores/useFilamentStore';
 import { useToastStore } from '../stores/useToastStore';
 import type { ParsedMetadata } from '../utils/parser';
 import PlateSelector from '../components/PlateSelector';
+import { normalizeFilename } from '../utils/api';
+
 
 interface DashboardPageProps {
   onNavigate: (tab: string) => void;
@@ -297,7 +299,9 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                 const tele = telemetryMap[p.serial];
                 if (!tele || !tele.print) return false;
                 const activeFile = tele.print.subtask_name || '';
-                return activeFile.toLowerCase().includes(job.filename.toLowerCase()) || job.filename.toLowerCase().includes(activeFile.toLowerCase());
+                const cleanJobFile = normalizeFilename(job.filename);
+                const cleanActiveFile = normalizeFilename(activeFile);
+                return cleanJobFile !== '' && cleanActiveFile !== '' && cleanJobFile === cleanActiveFile;
               });
               const progress = job.progress !== undefined ? job.progress : 0;
               const remaining = job.remainingTimeMinutes !== undefined ? job.remainingTimeMinutes : 0;
