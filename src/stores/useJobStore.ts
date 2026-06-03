@@ -377,6 +377,28 @@ export const useJobStore = create<JobStore>((set, get) => ({
       }
     }
 
+    // Retroactive fix: if a job is marked as 'Printing' but exists in print history as 'Completed', restore it
+    let fixedAny = false;
+    jobs = jobs.map(j => {
+      if (j.status === 'Printing' && historyLog.some(h => h.jobId === j.id)) {
+        fixedAny = true;
+        return { ...j, status: 'Completed' as const, progress: undefined, remainingTimeMinutes: undefined };
+      }
+      return j;
+    });
+    
+    if (fixedAny) {
+      saveJobsToLocal(jobs);
+      if (isTauri()) {
+        try {
+          const db = await getDb();
+          await db.execute("UPDATE jobs SET status = 'Completed', progress = NULL, remaining_time_minutes = NULL WHERE id IN (SELECT job_id FROM print_history)");
+        } catch (e) {
+          console.error("Failed to retroactively fix completed job statuses in SQLite:", e);
+        }
+      }
+    }
+
     set({ jobs, failuresLog, historyLog });
   },
 
