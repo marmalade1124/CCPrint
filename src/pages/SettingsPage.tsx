@@ -10,6 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 export default function SettingsPage() {
   const { pricingVars, shopName, updatePricingVars, updateShopName } = useSettingsStore();
   const { jobs, failuresLog, setJobs } = useJobStore();
+  const { spools } = useFilamentStore();
   const { setActivePrinter, resetAllConnections } = usePrinterStore();
   const { addToast } = useToastStore();
 
