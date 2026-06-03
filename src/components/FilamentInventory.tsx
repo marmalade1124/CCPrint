@@ -29,6 +29,7 @@ interface FilamentInventoryProps {
   onAddSpool: (spool: FilamentSpool) => void;
   onUpdateSpool: (id: string, updated: Partial<FilamentSpool>) => void;
   onDeleteSpool: (id: string) => void;
+  onClearLogs?: () => void;
 }
 
 const MATERIALS = ['PLA', 'PETG', 'ABS', 'TPU', 'ASA', 'Other'] as const;
@@ -51,6 +52,7 @@ export default function FilamentInventory({
   onAddSpool,
   onUpdateSpool,
   onDeleteSpool,
+  onClearLogs,
 }: FilamentInventoryProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSpoolId, setEditingSpoolId] = useState<string | null>(null);
@@ -466,7 +468,22 @@ export default function FilamentInventory({
               <Clock className="w-4 h-4 mr-2 text-brand-orange" />
               Filament Ledger &amp; Usage Logs
             </h3>
-            <span className="text-[10px] text-slate-400 font-bold">Total Entries: {logs.length}</span>
+            <div className="flex items-center space-x-3">
+              <span className="text-[10px] text-slate-450 font-bold">Total Entries: {logs.length}</span>
+              {onClearLogs && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to clear the entire filament ledger? This action cannot be undone.')) {
+                      onClearLogs();
+                    }
+                  }}
+                  className="text-red-500 hover:text-red-700 text-[10px] font-bold hover:underline"
+                >
+                  Clear Ledger
+                </button>
+              )}
+            </div>
           </div>
           <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
             {logs.map((log) => (

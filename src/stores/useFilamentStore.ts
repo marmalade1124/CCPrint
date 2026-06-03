@@ -33,6 +33,7 @@ interface FilamentStore {
     jobTitle?: string,
     type?: 'deduction' | 'waste' | 'refill'
   ) => Promise<void>;
+  clearLogs: () => Promise<void>;
 }
 
 let initPromise: Promise<void> | null = null;
@@ -267,6 +268,19 @@ export const useFilamentStore = create<FilamentStore>((set, get) => ({
         );
       } catch (e) {
         console.error("Failed to deduct filament in SQLite:", e);
+      }
+    }
+  },
+
+  clearLogs: async () => {
+    set({ logs: [] });
+    saveLogsToLocal([]);
+    if (isTauri()) {
+      try {
+        const db = await getDb();
+        await db.execute("DELETE FROM filament_logs");
+      } catch (e) {
+        console.error("Failed to clear filament logs in SQLite:", e);
       }
     }
   },

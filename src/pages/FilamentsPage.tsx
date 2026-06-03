@@ -3,7 +3,7 @@ import FilamentInventory from '../components/FilamentInventory';
 import { useFilamentStore } from '../stores/useFilamentStore';
 
 export default function FilamentsPage() {
-  const { spools, logs, addSpool, updateSpool, deleteSpool } = useFilamentStore();
+  const { spools, logs, addSpool, updateSpool, deleteSpool, clearLogs } = useFilamentStore();
 
   return (
     <FilamentInventory
@@ -12,6 +12,7 @@ export default function FilamentsPage() {
       onAddSpool={addSpool}
       onUpdateSpool={updateSpool}
       onDeleteSpool={deleteSpool}
+      onClearLogs={clearLogs}
     />
   );
 }
