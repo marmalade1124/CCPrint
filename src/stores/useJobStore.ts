@@ -415,7 +415,9 @@ export const useJobStore = create<JobStore>((set, get) => ({
   addJob: async (newJob) => {
     const { jobs } = get();
     const existingIndex = jobs.findIndex(
-      (j) => j.filename && j.filename.toLowerCase() === newJob.filename.toLowerCase()
+      (j) => j.filename && 
+             j.filename.toLowerCase() === newJob.filename.toLowerCase() &&
+             j.status === 'Pending Quote'
     );
 
     let finalJob: Job;
@@ -424,6 +426,8 @@ export const useJobStore = create<JobStore>((set, get) => ({
       const updatedJobs = [...jobs];
       finalJob = {
         ...updatedJobs[existingIndex],
+        title: newJob.title,
+        client: newJob.client,
         status: newJob.status,
         price: newJob.price,
         weight: newJob.weight,

@@ -37,8 +37,13 @@ export function useTelemetrySync() {
         return job;
       }
 
-      for (const [, telemetry] of Object.entries(telemetryMap)) {
+      for (const [serial, telemetry] of Object.entries(telemetryMap)) {
         if (!telemetry || !telemetry.print) continue;
+
+        // If the job already has a printer assigned, only match telemetry from that printer
+        if (job.printerSerial && job.printerSerial !== serial) {
+          continue;
+        }
 
         const printState = telemetry.print;
         const gcodeState = printState.gcode_state || 'IDLE';
@@ -56,13 +61,31 @@ export function useTelemetrySync() {
         if (matches) {
           if (gcodeState === 'RUNNING' && job.status !== 'Printing') {
             stateChanged = true;
-            return { ...job, status: 'Printing' as const, progress: percent, remainingTimeMinutes: remaining };
+            const printers = usePrinterStore.getState().printers;
+            const printerName = printers.find(p => p.serial === serial)?.name || serial;
+            return { 
+              ...job, 
+              status: 'Printing' as const, 
+              progress: percent, 
+              remainingTimeMinutes: remaining,
+              printerSerial: serial,
+              printerName: printerName,
+              startedAt: job.startedAt || new Date().toISOString()
+            };
           }
 
           if (gcodeState === 'RUNNING' && job.status === 'Printing') {
-            if (job.progress !== percent || job.remainingTimeMinutes !== remaining) {
+            if (job.progress !== percent || job.remainingTimeMinutes !== remaining || !job.printerSerial) {
               stateChanged = true;
-              return { ...job, progress: percent, remainingTimeMinutes: remaining };
+              const printers = usePrinterStore.getState().printers;
+              const printerName = printers.find(p => p.serial === serial)?.name || serial;
+              return { 
+                ...job, 
+                progress: percent, 
+                remainingTimeMinutes: remaining,
+                printerSerial: job.printerSerial || serial,
+                printerName: job.printerName || printerName
+              };
             }
           }
 
@@ -95,6 +118,7 @@ export function useTelemetrySync() {
               remainingTimeMinutes: 0,
               filamentDeducted: true,
               spoolId: finalSpoolId,
+              completedAt: job.completedAt || new Date().toISOString()
             };
           }
         }
