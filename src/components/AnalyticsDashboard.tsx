@@ -25,12 +25,23 @@ interface AnalyticsDashboardProps {
   historyLog?: PrintHistoryRecord[];
 }
 
-export default function AnalyticsDashboard({ jobs, spools, failures = [], historyLog = [] }: AnalyticsDashboardProps) {
+export default function AnalyticsDashboard({ 
+  jobs: rawJobs, 
+  spools: rawSpools, 
+  failures: rawFailures, 
+  historyLog: rawHistoryLog 
+}: AnalyticsDashboardProps) {
   const [timeframe, setTimeframe] = useState<'all' | 'weekly'>('all');
+
+  const jobs = Array.isArray(rawJobs) ? rawJobs : [];
+  const spools = Array.isArray(rawSpools) ? rawSpools : [];
+  const failures = Array.isArray(rawFailures) ? rawFailures : [];
+  const historyLog = Array.isArray(rawHistoryLog) ? rawHistoryLog : [];
 
   // Filter active jobs for queue value/count
   const printingJobs = jobs.filter((j) => j.status === 'Printing');
   const awaitingJobs = jobs.filter((j) => j.status === 'Awaiting Approval');
+  const completedJobs = historyLog.filter((h) => h.status === 'Completed');
 
   // Calculate Key KPIs from historyLog instead of active completedJobs
   const totalRevenue = historyLog.reduce((sum, h) => sum + h.price, 0);
