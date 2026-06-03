@@ -51,9 +51,12 @@ function getBigrams(str: string): string[] {
 export function getStringSimilarity(str1: string, str2: string): number {
   if (!str1 || !str2) return 0;
   
+  const norm1 = normalizeFilename(str1);
+  const norm2 = normalizeFilename(str2);
+  
   // Exact clean match
-  const clean1 = str1.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-  const clean2 = str2.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const clean1 = norm1.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const clean2 = norm2.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   if (clean1 === clean2) return 1.0;
   
   // Substring containment match
@@ -63,8 +66,8 @@ export function getStringSimilarity(str1: string, str2: string): number {
     }
   }
 
-  const bigrams1 = getBigrams(str1);
-  const bigrams2 = getBigrams(str2);
+  const bigrams1 = getBigrams(norm1);
+  const bigrams2 = getBigrams(norm2);
   
   if (bigrams1.length === 0 || bigrams2.length === 0) return 0;
   

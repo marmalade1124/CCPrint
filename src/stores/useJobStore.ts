@@ -63,6 +63,7 @@ interface JobStore {
 
   // Batch update for telemetry sync (updates database and state)
   batchUpdateJobs: (updater: (jobs: Job[]) => Job[]) => Promise<void>;
+  linkJobToActivePrint: (jobId: string, serial: string, filename: string) => Promise<void>;
 }
 let initPromise: Promise<void> | null = null;
 
@@ -863,6 +864,82 @@ export const useJobStore = create<JobStore>((set, get) => ({
       } catch (e) {
         console.error("Failed to batch update jobs in SQLite:", e);
       }
+    }
+  },
+  
+  linkJobToActivePrint: async (jobId, serial, filename) => {
+    const { jobs } = get();
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    const printers = usePrinterStore.getState().printers;
+    const printerName = printers.find(p => p.serial === serial)?.name || serial;
+
+    // Track if any previous jobs were unlinked so we can notify the user
+    const unlinkedJobTitles: string[] = [];
+
+    const updated = jobs.map((j) => {
+      if (j.id === jobId) {
+        return {
+          ...j,
+          status: 'Printing' as const,
+          progress: 0,
+          filename: filename, // Override filename to match the printer's active file
+          printerSerial: serial,
+          printerName: printerName,
+          startedAt: j.startedAt || new Date().toISOString(),
+        };
+      } else if (j.printerSerial === serial && j.status === 'Printing') {
+        unlinkedJobTitles.push(j.title);
+        return {
+          ...j,
+          status: 'Awaiting Approval' as const,
+          progress: undefined,
+          remainingTimeMinutes: undefined,
+          printerSerial: undefined,
+          printerName: undefined,
+        };
+      }
+      return j;
+    });
+
+    set({ jobs: updated });
+    saveJobsToLocal(updated);
+
+    if (isTauri()) {
+      try {
+        const db = await getDb();
+        // 1. Link the selected job to the active printer
+        await db.execute(
+          `UPDATE jobs SET 
+            status = 'Printing', progress = 0, remaining_time_minutes = NULL, 
+            filename = $1, printer_serial = $2, printer_name = $3, started_at = $4
+          WHERE id = $5`,
+          [
+            filename,
+            serial,
+            printerName,
+            job.startedAt || new Date().toISOString(),
+            jobId,
+          ]
+        );
+
+        // 2. Unlink any other jobs on this same printer that were in printing status
+        await db.execute(
+          `UPDATE jobs SET 
+            status = 'Awaiting Approval', progress = NULL, remaining_time_minutes = NULL, 
+            printer_serial = NULL, printer_name = NULL
+          WHERE printer_serial = $1 AND status = 'Printing' AND id != $2`,
+          [serial, jobId]
+        );
+      } catch (e) {
+        console.error("Failed to link job to active print in SQLite:", e);
+      }
+    }
+
+    useToastStore.getState().addToast(`Linked "${job.title}" to active print on printer "${printerName}".`, 'success');
+    if (unlinkedJobTitles.length > 0) {
+      useToastStore.getState().addToast(`Moved stale job(s) [${unlinkedJobTitles.join(', ')}] back to Awaiting Approval.`, 'info');
     }
   },
 }));

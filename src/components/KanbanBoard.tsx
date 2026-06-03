@@ -36,6 +36,8 @@ interface KanbanBoardProps {
   activePrintProgress?: number;
   activePrintRemaining?: number;
   onMarkFailed?: (jobId: string, failurePercent: number) => void;
+  onLinkActivePrint?: (jobId: string, serial: string, filename: string) => void;
+  activePrinterSerial?: string | null;
 }
 
 const COLUMNS: { id: Job['status']; name: string; colorClass: string; borderClass: string; bgLight: string }[] = [
@@ -57,6 +59,8 @@ export default function KanbanBoard({
   activePrintProgress,
   activePrintRemaining,
   onMarkFailed,
+  onLinkActivePrint,
+  activePrinterSerial,
 }: KanbanBoardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedJobId, setDraggedJobId] = useState<string | null>(null);
@@ -305,6 +309,16 @@ export default function KanbanBoard({
                                 <Calculator className="w-3.5 h-3.5 mr-1" />
                                 Compile Price Quote
                               </button>
+                              {activePrintFilename && activePrinterSerial && (
+                                <button
+                                  onClick={() => onLinkActivePrint && onLinkActivePrint(job.id, activePrinterSerial, activePrintFilename)}
+                                  className="w-full bg-blue-500 hover:bg-blue-600 text-white py-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center shadow-sm"
+                                  title={`Link this card to the print active on printer ("${activePrintFilename}")`}
+                                >
+                                  <Play className="w-3.5 h-3.5 mr-1 animate-pulse" />
+                                  Link to Live Print
+                                </button>
+                              )}
                               <button
                                 onClick={() => onTriggerPrint(job.id, job.filename)}
                                 className="w-full bg-orange-500 hover:bg-orange-600 text-white py-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center shadow-sm"
@@ -324,6 +338,16 @@ export default function KanbanBoard({
                                 <Play className="w-3 h-3 mr-1" />
                                 Approve &amp; Send to Print
                               </button>
+                              {activePrintFilename && activePrinterSerial && (
+                                <button
+                                  onClick={() => onLinkActivePrint && onLinkActivePrint(job.id, activePrinterSerial, activePrintFilename)}
+                                  className="w-full bg-blue-500 hover:bg-blue-600 text-white py-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center shadow-sm"
+                                  title={`Link this card to the print active on printer ("${activePrintFilename}")`}
+                                >
+                                  <Play className="w-3.5 h-3.5 mr-1 animate-pulse" />
+                                  Link to Live Print
+                                </button>
+                              )}
                               <button
                                 onClick={() => onTriggerPrintMock(job.filename)}
                                 className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 py-1 rounded text-[9px] font-bold transition-colors flex items-center justify-center"
