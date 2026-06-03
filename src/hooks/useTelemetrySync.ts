@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useJobStore } from '../stores/useJobStore';
 import { usePrinterStore } from '../stores/usePrinterStore';
 import { useFilamentStore } from '../stores/useFilamentStore';
-import { normalizeFilename } from '../utils/api';
+import { normalizeFilename, getStringSimilarity } from '../utils/api';
 
 
 export function useTelemetrySync() {
@@ -13,103 +13,129 @@ export function useTelemetrySync() {
     const currentJobs = useJobStore.getState().jobs;
     let stateChanged = false;
 
-    const updatedJobs = currentJobs.map((job) => {
-      // Ignore completed or ready for pickup jobs for live telemetry updates
-      if (job.status === 'Completed' || job.status === 'Ready for Pickup') {
-        return job;
-      }
+    const activePrinters = Object.entries(telemetryMap).filter(
+      ([_, tele]) => tele && tele.print && tele.print.subtask_name
+    );
 
-      for (const [serial, telemetry] of Object.entries(telemetryMap)) {
-        if (!telemetry || !telemetry.print) continue;
+    // Track which job IDs have already been matched in this pass to prevent collision
+    const matchedJobIds = new Set<string>();
+    let nextJobs = [...currentJobs];
 
-        // If the job already has a printer assigned, only match telemetry from that printer
+    for (const [serial, telemetry] of activePrinters) {
+      const printState = telemetry.print;
+      const gcodeState = printState.gcode_state || 'IDLE';
+      const activeFile = printState.subtask_name || '';
+      const percent = printState.mc_percent !== undefined ? printState.mc_percent : 0;
+      const remaining = printState.mc_remaining_time !== undefined ? printState.mc_remaining_time : 0;
+
+      if (!activeFile) continue;
+
+      let bestJobId: string | null = null;
+      let highestScore = 0;
+
+      const candidateJobs = nextJobs.filter(
+        (j) => j.status !== 'Completed' && j.status !== 'Ready for Pickup'
+      );
+
+      for (const job of candidateJobs) {
+        if (matchedJobIds.has(job.id)) {
+          continue;
+        }
+
+        // If the job is already locked to a different printer, skip
         if (job.printerSerial && job.printerSerial !== serial) {
           continue;
         }
 
-        const printState = telemetry.print;
-        const gcodeState = printState.gcode_state || 'IDLE';
-        const activeFile = printState.subtask_name || '';
-        const percent = printState.mc_percent !== undefined ? printState.mc_percent : 0;
-        const remaining = printState.mc_remaining_time !== undefined ? printState.mc_remaining_time : 0;
+        // Perfect match if serial matches
+        if (job.printerSerial === serial) {
+          bestJobId = job.id;
+          highestScore = 1.0;
+          break;
+        }
 
-        if (!activeFile) continue;
+        // Otherwise check string similarity
+        const score = getStringSimilarity(job.filename, activeFile);
+        if (score > highestScore && score >= 0.6) {
+          highestScore = score;
+          bestJobId = job.id;
+        }
+      }
 
-        const cleanJobFile = normalizeFilename(job.filename);
-        const cleanActiveFile = normalizeFilename(activeFile);
-
-        const matches = cleanJobFile !== '' && cleanActiveFile !== '' && cleanJobFile === cleanActiveFile;
-
-        if (matches) {
-          if (gcodeState === 'RUNNING' && job.status !== 'Printing') {
-            stateChanged = true;
+      if (bestJobId) {
+        matchedJobIds.add(bestJobId);
+        
+        nextJobs = nextJobs.map((job) => {
+          if (job.id === bestJobId) {
             const printers = usePrinterStore.getState().printers;
-            const printerName = printers.find(p => p.serial === serial)?.name || serial;
-            return { 
-              ...job, 
-              status: 'Printing' as const, 
-              progress: percent, 
-              remainingTimeMinutes: remaining,
-              printerSerial: serial,
-              printerName: printerName,
-              startedAt: job.startedAt || new Date().toISOString()
-            };
-          }
+            const printerName = printers.find((p) => p.serial === serial)?.name || serial;
 
-          if (gcodeState === 'RUNNING' && job.status === 'Printing') {
-            if (job.progress !== percent || job.remainingTimeMinutes !== remaining || !job.printerSerial) {
+            if (gcodeState === 'RUNNING' && job.status !== 'Printing') {
               stateChanged = true;
-              const printers = usePrinterStore.getState().printers;
-              const printerName = printers.find(p => p.serial === serial)?.name || serial;
               return { 
                 ...job, 
+                status: 'Printing' as const, 
                 progress: percent, 
                 remainingTimeMinutes: remaining,
-                printerSerial: job.printerSerial || serial,
-                printerName: job.printerName || printerName
+                printerSerial: serial,
+                printerName: printerName,
+                startedAt: job.startedAt || new Date().toISOString()
               };
             }
-          }
 
-          if ((gcodeState === 'FINISH' || percent >= 100) && job.status === 'Printing') {
-            stateChanged = true;
-
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('Print Completed!', {
-                body: `"${job.title}" is done and ready for client pickup.`,
-              });
-            }
-
-            let finalSpoolId = job.spoolId;
-            if (!finalSpoolId) {
-              const spools = useFilamentStore.getState().spools;
-              const matchingSpool = spools.find(s => s.material === 'PLA') || spools[0];
-              if (matchingSpool) {
-                finalSpoolId = matchingSpool.id;
+            if (gcodeState === 'RUNNING' && job.status === 'Printing') {
+              if (job.progress !== percent || job.remainingTimeMinutes !== remaining || job.printerSerial !== serial) {
+                stateChanged = true;
+                return { 
+                  ...job, 
+                  progress: percent, 
+                  remainingTimeMinutes: remaining,
+                  printerSerial: serial,
+                  printerName: printerName
+                };
               }
             }
 
-            if (finalSpoolId && !job.filamentDeducted) {
-              useFilamentStore.getState().deductFilament(finalSpoolId, job.weight, job.title, 'deduction');
-            }
+            if ((gcodeState === 'FINISH' || percent >= 100) && job.status === 'Printing') {
+              stateChanged = true;
 
-            return {
-              ...job,
-              status: 'Ready for Pickup' as const,
-              progress: 100,
-              remainingTimeMinutes: 0,
-              filamentDeducted: true,
-              spoolId: finalSpoolId,
-              completedAt: job.completedAt || new Date().toISOString()
-            };
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Print Completed!', {
+                  body: `"${job.title}" is done and ready for client pickup.`,
+                });
+              }
+
+              let finalSpoolId = job.spoolId;
+              if (!finalSpoolId) {
+                const spools = useFilamentStore.getState().spools;
+                const matchingSpool = spools.find((s) => s.material === 'PLA') || spools[0];
+                if (matchingSpool) {
+                  finalSpoolId = matchingSpool.id;
+                }
+              }
+
+              if (finalSpoolId && !job.filamentDeducted) {
+                useFilamentStore.getState().deductFilament(finalSpoolId, job.weight, job.title, 'deduction');
+              }
+
+              return {
+                ...job,
+                status: 'Ready for Pickup' as const,
+                progress: 100,
+                remainingTimeMinutes: 0,
+                filamentDeducted: true,
+                spoolId: finalSpoolId,
+                completedAt: job.completedAt || new Date().toISOString()
+              };
+            }
           }
-        }
+          return job;
+        });
       }
-      return job;
-    });
+    }
 
     if (stateChanged) {
-      useJobStore.getState().batchUpdateJobs(() => updatedJobs);
+      useJobStore.getState().batchUpdateJobs(() => nextJobs);
     }
   }, [telemetryMap]);
 

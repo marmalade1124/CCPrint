@@ -8,7 +8,7 @@ import { useFilamentStore } from '../stores/useFilamentStore';
 import { useToastStore } from '../stores/useToastStore';
 import type { ParsedMetadata } from '../utils/parser';
 import PlateSelector from '../components/PlateSelector';
-import { normalizeFilename } from '../utils/api';
+import { normalizeFilename, getStringSimilarity } from '../utils/api';
 
 
 interface DashboardPageProps {
@@ -299,9 +299,13 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                 const tele = telemetryMap[p.serial];
                 if (!tele || !tele.print) return false;
                 const activeFile = tele.print.subtask_name || '';
-                const cleanJobFile = normalizeFilename(job.filename);
-                const cleanActiveFile = normalizeFilename(activeFile);
-                return cleanJobFile !== '' && cleanActiveFile !== '' && cleanJobFile === cleanActiveFile;
+                if (job.printerSerial && job.printerSerial === p.serial) {
+                  return true;
+                }
+                if (job.printerSerial && job.printerSerial !== p.serial) {
+                  return false;
+                }
+                return getStringSimilarity(job.filename, activeFile) >= 0.6;
               });
               const progress = job.progress !== undefined ? job.progress : 0;
               const remaining = job.remainingTimeMinutes !== undefined ? job.remainingTimeMinutes : 0;
