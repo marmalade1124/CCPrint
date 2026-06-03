@@ -16,7 +16,7 @@ interface DashboardPageProps {
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const { jobs, parsedFile, isParsing, dragActive, addJob, setParsedFile, setIsParsing, setDragActive } = useJobStore();
+  const { jobs, parsedFile, isParsing, dragActive, addJob, updateJobStatus, setParsedFile, setIsParsing, setDragActive } = useJobStore();
   const { printers, activePrinterSerial, telemetryMap, connectionStatusMap } = usePrinterStore();
   const { pricingVars } = useSettingsStore();
   const { spools } = useFilamentStore();
@@ -314,14 +314,23 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                       {matchingPrinter && (<><span className="mx-2 text-slate-300">•</span>Printer: <span className="font-semibold text-brand-orange">{matchingPrinter.name}</span></>)}
                     </p>
                   </div>
-                  <div className="w-full md:w-64 space-y-1 shrink-0">
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                      <span>{remaining > 0 ? `${remaining} mins left` : 'Warming up...'}</span>
-                      <span className="text-slate-850 font-extrabold">{progress}%</span>
+                  <div className="flex items-center space-x-3 shrink-0 w-full md:w-auto">
+                    <div className="w-full md:w-64 space-y-1">
+                      <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span>{remaining > 0 ? `${remaining} mins left` : 'Warming up...'}</span>
+                        <span className="text-slate-850 font-extrabold">{progress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/50">
+                        <div className="bg-brand-orange h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }} />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/50">
-                      <div className="bg-brand-orange h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }} />
-                    </div>
+                    <button
+                      onClick={() => updateJobStatus(job.id, 'Ready for Pickup')}
+                      className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 p-2 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 flex items-center justify-center h-8 w-8"
+                      title="Force Mark Print Completed"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               );

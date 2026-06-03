@@ -345,16 +345,25 @@ export default function KanbanBoard({
                           )}
 
                           {col.id === 'Printing' && (
-                            <button
-                              onClick={() => {
-                                setFailModalJob(job);
-                                setFailPercent(progress !== undefined ? progress : 50);
-                              }}
-                              className="w-full bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 py-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center shadow-sm"
-                            >
-                              <ShieldAlert className="w-3.5 h-3.5 mr-1" />
-                              Mark Print Failed
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => onUpdateJobStatus(job.id, 'Ready for Pickup')}
+                                className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 py-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center shadow-sm"
+                              >
+                                <Check className="w-3.5 h-3.5 mr-1" />
+                                Mark Completed
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setFailModalJob(job);
+                                  setFailPercent(progress !== undefined ? progress : 50);
+                                }}
+                                className="flex-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 py-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center shadow-sm"
+                              >
+                                <ShieldAlert className="w-3.5 h-3.5 mr-1" />
+                                Mark Failed
+                              </button>
+                            </div>
                           )}
                         </div>
                       </motion.div>
