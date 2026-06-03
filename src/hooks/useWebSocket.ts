@@ -95,6 +95,10 @@ export function useWebSocket() {
 
     return () => {
       if (wsRef.current) {
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onclose = null;
         wsRef.current.close();
       }
       if (reconnectTimeoutRef.current) {

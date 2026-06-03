@@ -68,9 +68,9 @@ export default function KanbanBoard({
   // Filter jobs based on search query
   const filteredJobs = jobs.filter(
     (job) =>
-      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.filename.toLowerCase().includes(searchQuery.toLowerCase())
+      (job.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (job.client || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (job.filename || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Group jobs by column

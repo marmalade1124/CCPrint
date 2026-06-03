@@ -16,26 +16,28 @@ export interface FailureRecord {
   date: string;
 }
 
+import { PrintHistoryRecord } from '../types';
+
 interface AnalyticsDashboardProps {
   jobs: Job[];
   spools: FilamentSpool[];
   failures?: FailureRecord[];
+  historyLog?: PrintHistoryRecord[];
 }
 
-export default function AnalyticsDashboard({ jobs, spools, failures = [] }: AnalyticsDashboardProps) {
+export default function AnalyticsDashboard({ jobs, spools, failures = [], historyLog = [] }: AnalyticsDashboardProps) {
   const [timeframe, setTimeframe] = useState<'all' | 'weekly'>('all');
 
-  // Filter completed jobs
-  const completedJobs = jobs.filter((j) => j.status === 'Completed');
+  // Filter active jobs for queue value/count
   const printingJobs = jobs.filter((j) => j.status === 'Printing');
   const awaitingJobs = jobs.filter((j) => j.status === 'Awaiting Approval');
 
-  // Calculate Key KPIs
-  const totalRevenue = completedJobs.reduce((sum, j) => sum + j.price, 0);
+  // Calculate Key KPIs from historyLog instead of active completedJobs
+  const totalRevenue = historyLog.reduce((sum, h) => sum + h.price, 0);
   const activeQueueValue = awaitingJobs.reduce((sum, j) => sum + j.price, 0) + printingJobs.reduce((sum, j) => sum + j.price, 0);
-  const totalMaterialGrams = completedJobs.reduce((sum, j) => sum + j.weight, 0);
+  const totalMaterialGrams = historyLog.reduce((sum, h) => sum + h.weightGrams, 0);
   
-  const totalRuntimeMinutes = completedJobs.reduce((sum, j) => sum + j.printTimeMinutes, 0);
+  const totalRuntimeMinutes = historyLog.reduce((sum, h) => sum + h.printTimeMinutes, 0);
   const totalRuntimeHours = Math.round((totalRuntimeMinutes / 60) * 10) / 10;
   
   const totalInventoryValue = spools.reduce((sum, s) => sum + s.cost * (s.weightLeft / s.initialWeight), 0);
@@ -46,16 +48,16 @@ export default function AnalyticsDashboard({ jobs, spools, failures = [] }: Anal
   const wastedRuntimeMinutes = failures.reduce((sum, f) => sum + f.wastedTimeMinutes, 0);
   const wastedRuntimeHours = Math.round((wastedRuntimeMinutes / 60) * 10) / 10;
   
-  const totalPrintAttempts = completedJobs.length + failures.length;
+  const totalPrintAttempts = historyLog.length + failures.length;
   const printSuccessRate = totalPrintAttempts > 0 
-    ? Math.round((completedJobs.length / totalPrintAttempts) * 100) 
+    ? Math.round((historyLog.length / totalPrintAttempts) * 100) 
     : 100;
 
-  // 1. Group completed jobs by date for Revenue Chart
+  // 1. Group completed jobs by date for Revenue Chart (from historyLog)
   const revenueByDate: Record<string, number> = {};
-  completedJobs.forEach((job) => {
-    const date = job.dateCreated;
-    revenueByDate[date] = (revenueByDate[date] || 0) + job.price;
+  historyLog.forEach((h) => {
+    const date = h.completedAt ? new Date(h.completedAt).toLocaleDateString() : new Date().toLocaleDateString();
+    revenueByDate[date] = (revenueByDate[date] || 0) + h.price;
   });
 
   // Sort dates chronologically (or take the last 7 entries)
@@ -89,13 +91,13 @@ export default function AnalyticsDashboard({ jobs, spools, failures = [] }: Anal
 
   // 2. Client Revenue Breakdown
   const revenueByClient: Record<string, { revenue: number; weight: number; count: number }> = {};
-  completedJobs.forEach((job) => {
-    const client = job.client || 'Walk-in Client';
+  historyLog.forEach((h) => {
+    const client = h.client || 'Walk-in Client';
     if (!revenueByClient[client]) {
       revenueByClient[client] = { revenue: 0, weight: 0, count: 0 };
     }
-    revenueByClient[client].revenue += job.price;
-    revenueByClient[client].weight += job.weight;
+    revenueByClient[client].revenue += h.price;
+    revenueByClient[client].weight += h.weightGrams;
     revenueByClient[client].count += 1;
   });
 
@@ -108,15 +110,15 @@ export default function AnalyticsDashboard({ jobs, spools, failures = [] }: Anal
 
   // 3. Material consumption breakdown (derived from filament spools or default PLA)
   const materialBreakdown: Record<string, number> = { PLA: 0, PETG: 0, ABS: 0, TPU: 0, ASA: 0, Other: 0 };
-  completedJobs.forEach((job) => {
-    const fn = job.filename.toUpperCase();
+  historyLog.forEach((h) => {
+    const fn = (h.filename || '').toUpperCase();
     let mat = 'PLA';
     if (fn.includes('PETG')) mat = 'PETG';
     else if (fn.includes('ABS')) mat = 'ABS';
     else if (fn.includes('TPU')) mat = 'TPU';
     else if (fn.includes('ASA')) mat = 'ASA';
     
-    materialBreakdown[mat] = (materialBreakdown[mat] || 0) + job.weight;
+    materialBreakdown[mat] = (materialBreakdown[mat] || 0) + h.weightGrams;
   });
 
   const totalGramsAll = Object.values(materialBreakdown).reduce((sum, g) => sum + g, 0) || 1;

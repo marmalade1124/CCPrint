@@ -249,12 +249,15 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
     });
 
     // Auto-save new client name to Customer Directory if they don't exist
-    const clientExists = customers.some(c => c.name.toLowerCase() === selectedClient.toLowerCase());
-    if (!clientExists && selectedClient !== 'Walk-in Client') {
+    const trimmedClient = selectedClient.trim();
+    const isWalkIn = trimmedClient.toLowerCase() === 'walk-in client' || trimmedClient === '';
+    const clientExists = customers.some(c => (c.name || '').trim().toLowerCase() === trimmedClient.toLowerCase());
+    
+    if (!clientExists && !isWalkIn) {
       import('../stores/useCustomerStore').then(({ useCustomerStore }) => {
         useCustomerStore.getState().addCustomer({
           id: 'cust-' + Math.random().toString(36).substring(2, 9),
-          name: selectedClient,
+          name: trimmedClient,
           email: '',
           phone: '',
           company: '',

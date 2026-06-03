@@ -90,10 +90,10 @@ export default function PrintHistory({ historyLog, failures, spools }: PrintHist
   const filteredHistory = allHistory.filter(item => {
     // 1. Search Query
     const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.spoolName.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.client || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.filename || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.spoolName || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     // 2. Status Filter
     const matchesStatus =

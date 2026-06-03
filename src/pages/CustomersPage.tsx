@@ -5,12 +5,14 @@ import { useJobStore } from '../stores/useJobStore';
 
 export default function CustomersPage() {
   const { customers, addCustomer, updateCustomer, deleteCustomer } = useCustomerStore();
-  const { jobs } = useJobStore();
+  const { jobs, historyLog, failuresLog } = useJobStore();
 
   return (
     <CustomerManager
       customers={customers}
       jobs={jobs}
+      historyLog={historyLog}
+      failures={failuresLog}
       onAddCustomer={addCustomer}
       onUpdateCustomer={updateCustomer}
       onDeleteCustomer={deleteCustomer}

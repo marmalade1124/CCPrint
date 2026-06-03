@@ -54,9 +54,9 @@ export const usePrinterStore = create<PrinterStore>((set, get) => ({
         printers = printerRows.map((r) => ({
           id: r.id,
           name: r.name,
-          ip: r.ip,
+          ip: r.ip || '',
           serial: r.serial,
-          accessCode: r.access_code,
+          accessCode: r.access_code || '',
         }));
 
         const activeRes = await db.select<{ value: string }[]>(

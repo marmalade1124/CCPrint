@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { User, Phone, Mail, Building, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
 import { Job } from './KanbanBoard';
+import { PrintHistoryRecord } from '../types';
+import { FailureRecord } from './AnalyticsDashboard';
 
 export interface Customer {
   id: string;
@@ -15,6 +17,8 @@ export interface Customer {
 interface CustomerManagerProps {
   customers: Customer[];
   jobs: Job[];
+  historyLog?: PrintHistoryRecord[];
+  failures?: FailureRecord[];
   onAddCustomer: (customer: Customer) => void;
   onUpdateCustomer: (id: string, updated: Partial<Customer>) => void;
   onDeleteCustomer: (id: string) => void;
@@ -23,6 +27,8 @@ interface CustomerManagerProps {
 export default function CustomerManager({
   customers,
   jobs,
+  historyLog = [],
+  failures = [],
   onAddCustomer,
   onUpdateCustomer,
   onDeleteCustomer,
@@ -82,18 +88,63 @@ export default function CustomerManager({
 
   // Filtered customer list
   const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.company.toLowerCase().includes(searchQuery.toLowerCase())
+    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.company || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Calculate statistics for a customer
   const getCustomerStats = (customerName: string) => {
-    const clientJobs = jobs.filter(j => j.client.toLowerCase() === customerName.toLowerCase());
-    const totalSpent = clientJobs.reduce((sum, j) => sum + j.price, 0);
-    const totalFilament = clientJobs.reduce((sum, j) => sum + j.weight, 0);
-    const jobCount = clientJobs.length;
-    const activeJobs = clientJobs.filter(j => j.status === 'Printing' || j.status === 'Awaiting Approval').length;
+    // 1. Filter active board jobs (excluding Completed ones to prevent duplicates)
+    const clientActiveJobs = jobs.filter(j => 
+      (j.client || '').toLowerCase() === customerName.toLowerCase() && 
+      j.status !== 'Completed'
+    );
+    
+    // 2. Filter completed runs from history ledger
+    const clientHistory = historyLog.filter(h => 
+      (h.client || '').toLowerCase() === customerName.toLowerCase()
+    );
+
+    // 3. Filter failure runs
+    const clientFailures = failures.filter(f => 
+      (f.client || '').toLowerCase() === customerName.toLowerCase()
+    );
+
+    const totalSpent = clientHistory.reduce((sum, h) => sum + h.price, 0);
+    const totalFilament = clientHistory.reduce((sum, h) => sum + h.weightGrams, 0) + clientFailures.reduce((sum, f) => sum + f.wastedGrams, 0);
+    
+    const activeJobs = clientActiveJobs.filter(j => j.status === 'Printing' || j.status === 'Awaiting Approval' || j.status === 'Ready for Pickup').length;
+    const jobCount = clientActiveJobs.length + clientHistory.length + clientFailures.length;
+
+    // Build unified order history timeline
+    const activeMapped = clientActiveJobs.map(job => ({
+      id: job.id,
+      title: job.title,
+      dateCreated: job.dateCreated,
+      status: job.status,
+      price: job.price,
+    }));
+
+    const historyMapped = clientHistory.map(h => ({
+      id: h.id,
+      title: h.jobTitle,
+      dateCreated: h.completedAt ? new Date(h.completedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+      status: 'Completed' as const,
+      price: h.price,
+    }));
+
+    const failedMapped = clientFailures.map(f => ({
+      id: f.id,
+      title: `${f.jobTitle} (Failed ${f.failurePercent}%)`,
+      dateCreated: f.date,
+      status: 'Failed' as const,
+      price: f.wastedCost,
+    }));
+
+    const clientJobs = [...activeMapped, ...historyMapped, ...failedMapped].sort((a, b) => 
+      new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()
+    );
 
     return { totalSpent, totalFilament, jobCount, activeJobs, clientJobs };
   };

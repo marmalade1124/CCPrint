@@ -37,10 +37,10 @@ export const useCustomerStore = create<CustomerStore>((set, get) => ({
             customers = rows.map((r) => ({
               id: r.id,
               name: r.name,
-              email: r.email,
-              phone: r.phone,
-              company: r.company,
-              notes: r.notes,
+              email: r.email || '',
+              phone: r.phone || '',
+              company: r.company || '',
+              notes: r.notes || '',
               dateAdded: r.date_added,
             }));
             if (customers.length > 0) {

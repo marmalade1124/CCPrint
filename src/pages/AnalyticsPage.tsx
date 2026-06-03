@@ -4,8 +4,8 @@ import { useJobStore } from '../stores/useJobStore';
 import { useFilamentStore } from '../stores/useFilamentStore';
 
 export default function AnalyticsPage() {
-  const { jobs, failuresLog } = useJobStore();
+  const { jobs, failuresLog, historyLog } = useJobStore();
   const { spools } = useFilamentStore();
 
-  return <AnalyticsDashboard jobs={jobs} spools={spools} failures={failuresLog} />;
+  return <AnalyticsDashboard jobs={jobs} spools={spools} failures={failuresLog} historyLog={historyLog} />;
 }
