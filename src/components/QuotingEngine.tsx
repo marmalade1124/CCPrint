@@ -49,7 +49,10 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
   const [timeHours, setTimeHours] = useState<number>(0);
   const [timeMins, setTimeMins] = useState<number>(0);
   const [quoteId, setQuoteId] = useState('');
+  const [customDate, setCustomDate] = useState('');
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>('');
+  const [isManualPrice, setIsManualPrice] = useState(false);
+  const [manualPrice, setManualPrice] = useState<number>(0);
   
   // Exporter statuses
   const [copyStatus, setCopyStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -134,6 +137,7 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
   const subtotal = filamentCost + timeCost;
   const serviceFee = subtotal * (vars.serviceFeePercent / 100);
   const total = subtotal + serviceFee + vars.flatMarkup;
+  const finalPrice = isManualPrice ? manualPrice : total;
 
   const handleSaveConfig = () => {
     if (onSaveVariables) {
@@ -242,7 +246,7 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
       client: selectedClient,
       weight: weight,
       printTimeMinutes: totalMinutes,
-      price: Math.round(total * 100) / 100,
+      price: Math.round(finalPrice * 100) / 100,
       filename: parsedFile?.filename || `${jobTitle.toLowerCase().replace(/\s+/g, '_')}.gcode`,
       status,
       spoolId: selectedSpoolId || undefined,
@@ -346,6 +350,39 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
 
         {/* Inputs override */}
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Quote Reference #</label>
+              <div className="flex space-x-1.5">
+                <input 
+                  type="text" 
+                  value={quoteId} 
+                  onChange={(e) => setQuoteId(e.target.value)}
+                  placeholder="e.g. Q-8A2F1C"
+                  className="w-full text-xs font-bold rounded-lg border-slate-200 focus:ring-brand-orange focus:border-brand-orange py-2 px-2.5 bg-slate-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuoteId('Q-' + Math.random().toString(36).substring(2, 8).toUpperCase())}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors shrink-0"
+                  title="Generate new quote reference"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Invoice / Quote Date</label>
+              <input 
+                type="text" 
+                value={customDate} 
+                onChange={(e) => setCustomDate(e.target.value)}
+                placeholder={new Date().toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}
+                className="w-full text-xs rounded-lg border-slate-200 focus:ring-brand-orange focus:border-brand-orange py-2 px-2.5 bg-slate-50"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Job/Model Title</label>
             <input 
@@ -477,9 +514,48 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
               <span className="font-medium text-slate-800">{vars.currencySymbol}{vars.flatMarkup.toFixed(2)}</span>
             </div>
           )}
+
+          {/* Manual Price Override Option */}
+          <div className="pt-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-semibold text-slate-500">Price Calculation Mode</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isManualPrice) {
+                    setManualPrice(Math.round(total * 100) / 100);
+                  }
+                  setIsManualPrice(!isManualPrice);
+                }}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                  isManualPrice 
+                    ? 'bg-amber-50 border-amber-300 text-amber-800' 
+                    : 'bg-slate-100 border-slate-200 text-slate-600'
+                }`}
+              >
+                {isManualPrice ? 'Manual Override: ON' : 'Formula Mode: ON'}
+              </button>
+            </div>
+
+            {isManualPrice && (
+              <div className="mt-2 p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1 animate-fadeIn">
+                <label className="text-[10px] font-bold text-amber-850 block">Custom Total Price ({vars.currencySymbol})</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={manualPrice || ''}
+                  onChange={(e) => setManualPrice(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  className="w-full text-sm font-black p-2 bg-white border border-amber-300 rounded-lg text-slate-900 focus:border-brand-orange outline-none"
+                />
+              </div>
+            )}
+          </div>
+
           <div className="pt-4 border-t border-slate-100 flex justify-between items-end">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Quote</span>
-            <span className="text-2xl font-black text-brand-orange">{vars.currencySymbol}{total.toFixed(2)}</span>
+            <span className="text-2xl font-black text-brand-orange">{vars.currencySymbol}{finalPrice.toFixed(2)}</span>
           </div>
         </div>
 
@@ -561,7 +637,7 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
               </div>
               <div className="text-right">
                 <span className="text-slate-400 block font-medium">DATE</span>
-                <span className="font-bold text-slate-850">{new Date().toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</span>
+                <span className="font-bold text-slate-850">{customDate || new Date().toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</span>
               </div>
               <div className="mt-1 col-span-2">
                 <span className="text-slate-400 block font-medium">CLIENT</span>
@@ -633,26 +709,26 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
                 {filamentCost > 0 && (
                   <div 
                     className="bg-brand-orange h-full" 
-                    style={{ width: `${(filamentCost / (total > 0 ? total : 1)) * 100}%` }}
+                    style={{ width: `${(filamentCost / (finalPrice > 0 ? finalPrice : 1)) * 100}%` }}
                   />
                 )}
                 {timeCost > 0 && (
                   <div 
                     className="bg-blue-500 h-full" 
-                    style={{ width: `${(timeCost / (total > 0 ? total : 1)) * 100}%` }}
+                    style={{ width: `${(timeCost / (finalPrice > 0 ? finalPrice : 1)) * 100}%` }}
                   />
                 )}
                 {(serviceFee + vars.flatMarkup) > 0 && (
                   <div 
                     className="bg-amber-500 h-full" 
-                    style={{ width: `${((serviceFee + vars.flatMarkup) / (total > 0 ? total : 1)) * 100}%` }}
+                    style={{ width: `${((serviceFee + vars.flatMarkup) / (finalPrice > 0 ? finalPrice : 1)) * 100}%` }}
                   />
                 )}
               </div>
               <div className="flex justify-between items-center text-[8px] text-slate-450 font-bold">
-                <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-brand-orange mr-1" />Material ({((filamentCost / (total > 0 ? total : 1)) * 100).toFixed(0)}%)</span>
-                <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1" />Machine ({((timeCost / (total > 0 ? total : 1)) * 100).toFixed(0)}%)</span>
-                <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />Service ({(((serviceFee + vars.flatMarkup) / (total > 0 ? total : 1)) * 100).toFixed(0)}%)</span>
+                <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-brand-orange mr-1" />Material ({((filamentCost / (finalPrice > 0 ? finalPrice : 1)) * 100).toFixed(0)}%)</span>
+                <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1" />Machine ({((timeCost / (finalPrice > 0 ? finalPrice : 1)) * 100).toFixed(0)}%)</span>
+                <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />Service ({(((serviceFee + vars.flatMarkup) / (finalPrice > 0 ? finalPrice : 1)) * 100).toFixed(0)}%)</span>
               </div>
             </div>
 
@@ -662,7 +738,7 @@ export default function QuotingEngine({ parsedFile, spools, customers = [], onAd
                 <span className="text-slate-400 text-[9px] block font-bold uppercase tracking-wider">Estimated Total</span>
                 <span className="text-slate-400 text-[8px] block italic leading-tight">Subject to final slicing parameters</span>
               </div>
-              <span className="text-2xl font-black text-brand-orange">{vars.currencySymbol}{total.toFixed(2)}</span>
+              <span className="text-2xl font-black text-brand-orange">{vars.currencySymbol}{finalPrice.toFixed(2)}</span>
             </div>
             
             {/* Tiny brand stamp */}

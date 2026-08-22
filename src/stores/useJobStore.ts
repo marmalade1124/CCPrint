@@ -45,6 +45,7 @@ interface JobStore {
   init: () => Promise<void>;
   // Job CRUD
   addJob: (newJob: Omit<Job, 'id' | 'dateCreated'>) => Promise<void>;
+  updateJob: (id: string, updates: Partial<Job>) => Promise<void>;
   updateJobStatus: (id: string, newStatus: Job['status']) => Promise<void>;
   deleteJob: (id: string) => Promise<void>;
   setJobs: (jobs: Job[]) => void;
@@ -488,6 +489,56 @@ export const useJobStore = create<JobStore>((set, get) => ({
         console.error("Failed to save job to SQLite:", e);
       }
     }
+  },
+
+  updateJob: async (id, updates) => {
+    const { jobs } = get();
+    const existing = jobs.find((j) => j.id === id);
+    if (!existing) return;
+
+    const updatedJob: Job = { ...existing, ...updates };
+    const nextJobs = jobs.map((j) => (j.id === id ? updatedJob : j));
+    set({ jobs: nextJobs });
+    saveJobsToLocal(nextJobs);
+
+    if (isTauri()) {
+      try {
+        const db = await getDb();
+        await db.execute(
+          `UPDATE jobs SET
+            title = $1, client = $2, weight = $3, print_time_minutes = $4, price = $5,
+            filename = $6, status = $7, progress = $8, remaining_time_minutes = $9,
+            date_created = $10, spool_id = $11, filament_deducted = $12, plate_index = $13,
+            plate_name = $14, completed_at = $15, printer_serial = $16, printer_name = $17, started_at = $18
+          WHERE id = $19`,
+          [
+            updatedJob.title,
+            updatedJob.client || '',
+            updatedJob.weight || 0,
+            updatedJob.printTimeMinutes || 0,
+            updatedJob.price || 0,
+            updatedJob.filename || '',
+            updatedJob.status,
+            updatedJob.progress !== undefined ? updatedJob.progress : null,
+            updatedJob.remainingTimeMinutes !== undefined ? updatedJob.remainingTimeMinutes : null,
+            updatedJob.dateCreated,
+            updatedJob.spoolId || null,
+            updatedJob.filamentDeducted ? 1 : 0,
+            updatedJob.plateIndex !== undefined ? updatedJob.plateIndex : null,
+            updatedJob.plateName || null,
+            updatedJob.completedAt || null,
+            updatedJob.printerSerial || null,
+            updatedJob.printerName || null,
+            updatedJob.startedAt || null,
+            id,
+          ]
+        );
+      } catch (e) {
+        console.error("Failed to update job in SQLite:", e);
+      }
+    }
+
+    useToastStore.getState().addToast(`Updated job "${updatedJob.title}" specs.`, 'success');
   },
 
   updateJobStatus: async (id, newStatus) => {
